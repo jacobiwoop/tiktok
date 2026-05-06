@@ -18,10 +18,10 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const { selectedAlbums, isReady } = useMedia();
+  const { selectedDirectoryUri, isReady } = useMedia();
 
   // Si le contexte est prêt mais qu'aucun dossier n'est choisi, on redirige vers le setup
-  if (isReady && selectedAlbums.length === 0) {
+  if (isReady && !selectedDirectoryUri) {
     return <Redirect href="/setup" />;
   }
 
@@ -54,3 +54,4 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+

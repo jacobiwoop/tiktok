@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import * as MediaLibrary from 'expo-media-library';
+import * as FileSystem from 'expo-file-system';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const { StorageAccessFramework } = FileSystem;
 
 type MediaContextType = {
   isReady: boolean;
-  hasPermission: boolean;
-  selectedAlbums: string[];
-  saveSelectedAlbums: (albumIds: string[]) => Promise<void>;
-  requestPermission: () => Promise<boolean>;
+  selectedDirectoryUri: string | null;
+  pickDirectory: () => Promise<boolean>;
 };
 
 const MediaContext = createContext<MediaContextType | null>(null);
@@ -20,24 +20,19 @@ export const useMedia = () => {
   return context;
 };
 
-const ALBUMS_STORAGE_KEY = '@tiktok_selected_albums';
+const DIRECTORY_STORAGE_KEY = '@tiktok_saf_directory';
 
 export const MediaProvider = ({ children }: { children: React.ReactNode }) => {
   const [isReady, setIsReady] = useState(false);
-  const [hasPermission, setHasPermission] = useState(false);
-  const [selectedAlbums, setSelectedAlbums] = useState<string[]>([]);
+  const [selectedDirectoryUri, setSelectedDirectoryUri] = useState<string | null>(null);
 
   useEffect(() => {
     async function initContext() {
       try {
-        // 1. Vérifier les permissions actuelles sans les forcer
-        const permissionInfo = await MediaLibrary.getPermissionsAsync();
-        setHasPermission(permissionInfo.granted);
-
-        // 2. Charger les albums sauvegardés
-        const savedAlbums = await AsyncStorage.getItem(ALBUMS_STORAGE_KEY);
-        if (savedAlbums) {
-          setSelectedAlbums(JSON.parse(savedAlbums));
+        const savedUri = await AsyncStorage.getItem(DIRECTORY_STORAGE_KEY);
+        if (savedUri) {
+          // On pourrait vérifier si on a toujours accès à l'URI, mais on suppose que oui pour l'instant
+          setSelectedDirectoryUri(savedUri);
         }
       } catch (error) {
         console.error("Erreur lors de l'initialisation du MediaContext", error);
@@ -49,18 +44,20 @@ export const MediaProvider = ({ children }: { children: React.ReactNode }) => {
     initContext();
   }, []);
 
-  const requestPermission = async () => {
-    const { status } = await MediaLibrary.requestPermissionsAsync();
-    setHasPermission(status === 'granted');
-    return status === 'granted';
-  };
-
-  const saveSelectedAlbums = async (albumIds: string[]) => {
+  const pickDirectory = async () => {
     try {
-      await AsyncStorage.setItem(ALBUMS_STORAGE_KEY, JSON.stringify(albumIds));
-      setSelectedAlbums(albumIds);
+      const permissions = await StorageAccessFramework.requestDirectoryPermissionsAsync();
+      
+      if (permissions.granted) {
+        const uri = permissions.directoryUri;
+        await AsyncStorage.setItem(DIRECTORY_STORAGE_KEY, uri);
+        setSelectedDirectoryUri(uri);
+        return true;
+      }
+      return false;
     } catch (error) {
-      console.error("Erreur lors de la sauvegarde des albums", error);
+      console.error("Erreur lors de la sélection du dossier", error);
+      return false;
     }
   };
 
@@ -68,13 +65,12 @@ export const MediaProvider = ({ children }: { children: React.ReactNode }) => {
     <MediaContext.Provider
       value={{
         isReady,
-        hasPermission,
-        selectedAlbums,
-        saveSelectedAlbums,
-        requestPermission,
+        selectedDirectoryUri,
+        pickDirectory,
       }}
     >
       {children}
     </MediaContext.Provider>
   );
 };
+
