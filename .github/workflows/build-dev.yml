@@ -1,37 +1,66 @@
-name: Build Dev Client
+name: Build TikTok Dev (Debug)
+
 on:
+  workflow_dispatch:
   push:
     branches:
       - master
-  workflow_dispatch: # Permet aussi un lancement manuel
 
 jobs:
-  build:
+  build-dev-client:
+    name: 🧪 Build Expo Dev Client
     runs-on: ubuntu-latest
+
     steps:
       - name: 🏗 Checkout repository
         uses: actions/checkout@v4
 
-      - name: 🏗 Setup Node
+      - name: ⚙️ Setup Node.js 20
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           cache: 'npm'
 
-      - name: 🏗 Setup EAS
-        uses: expo/expo-github-action@v8
+      - name: ☕ Setup JDK 17
+        uses: actions/setup-java@v4
         with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: 🤖 Setup Android SDK
+        uses: android-actions/setup-android@v3
 
       - name: 📦 Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
-      - name: 🚀 Build Android Dev Client
-        run: npx eas-cli build --platform android --profile development --local --output=./app-dev.apk
+      - name: 🪄 Customize for Dev Client
+        run: |
+          # Patch app.json pour s'assurer de l'identité du Dev Client
+          jq '.expo.name = "expo tiktok dev" | .expo.android.package = "com.expotiktok.app" | del(.expo.icon) | del(.expo.android.adaptiveIcon)' app.json > app.json.tmp && mv app.json.tmp app.json
+          echo "App.json patched for Dev Client"
 
-      - name: 📤 Upload Artifact
+      - name: 🛠 Prebuild Android
+        run: |
+          npx expo prebuild --platform android --clean
+          # --- SUPER FIX KOTLIN (Inspiré de Tubidy) ---
+          if [ -f android/build.gradle ]; then
+            sed -i 's/dependencies {/dependencies {\n        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.0")/' android/build.gradle
+            sed -i 's/kotlinVersion = .*/kotlinVersion = "1.9.0"/' android/build.gradle
+            echo "Super Fix Applied"
+          fi
+
+      - name: 🔧 Fix Gradle Compatibility
+        run: |
+          chmod +x android/gradlew
+
+      - name: 🏗 Build Debug APK
+        run: |
+          cd android
+          ./gradlew assembleDebug
+
+      - name: 📤 Upload Dev Client APK
         uses: actions/upload-artifact@v4
         with:
-          name: android-dev-client
-          path: ./app-dev.apk
+          name: tiktok-dev-client
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 7
