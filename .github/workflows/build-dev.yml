@@ -1,0 +1,37 @@
+name: Build Dev Client
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch: # Permet aussi un lancement manuel
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🏗 Checkout repository
+        uses: actions/checkout@v4
+
+      - name: 🏗 Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: 'npm'
+
+      - name: 🏗 Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: 📦 Install dependencies
+        run: npm install
+
+      - name: 🚀 Build Android Dev Client
+        run: npx eas-cli build --platform android --profile development --local --output=./app-dev.apk
+
+      - name: 📤 Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-dev-client
+          path: ./app-dev.apk
