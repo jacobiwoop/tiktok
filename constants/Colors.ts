@@ -1,5 +1,13 @@
-const tintColorLight = '#2f95dc';
-const tintColorDark = '#fff';
+const tintColorLight = '#FE2C55'; // Rouge TikTok
+const tintColorDark = '#FFFFFF';
+
+export const TikTokColors = {
+  red: '#FE2C55',
+  cyan: '#25F4EE',
+  black: '#000000',
+  white: '#FFFFFF',
+  gray: '#8A8A8E',
+};
 
 export default {
   light: {
@@ -12,8 +20,8 @@ export default {
   dark: {
     text: '#fff',
     background: '#000',
-    tint: tintColorDark,
-    tabIconDefault: '#ccc',
-    tabIconSelected: tintColorDark,
+    tint: TikTokColors.red, // On utilise le rouge TikTok pour l'onglet actif
+    tabIconDefault: '#8A8A8E',
+    tabIconSelected: TikTokColors.red,
   },
 };
