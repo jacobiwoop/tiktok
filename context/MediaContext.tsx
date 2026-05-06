@@ -1,8 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import * as FileSystem from 'expo-file-system';
+import { StorageAccessFramework } from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const { StorageAccessFramework } = FileSystem;
 
 type MediaContextType = {
   isReady: boolean;

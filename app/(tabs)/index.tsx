@@ -1,24 +1,15 @@
-import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Text, FlatList, Dimensions, ActivityIndicator } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import React, { useEffect, useState, useRef } from 'react';
+import { StyleSheet, View, Text, FlatList, ActivityIndicator, ViewToken } from 'react-native';
+import { StorageAccessFramework } from 'expo-file-system/legacy';
 import { useMedia } from '@/context/MediaContext';
 import { TikTokColors } from '@/constants/Colors';
-
-const { StorageAccessFramework } = FileSystem;
-const { height } = Dimensions.get('window');
-const ITEM_HEIGHT = height - 49; 
-
-// On crée un petit type pour représenter nos vidéos locales
-type LocalVideo = {
-  id: string;
-  uri: string;
-  filename: string;
-};
+import VideoPost, { LocalVideo } from '@/components/VideoPost';
 
 export default function VideoFeedScreen() {
   const { selectedDirectoryUri } = useMedia();
   const [videos, setVideos] = useState<LocalVideo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeVideoIndex, setActiveVideoIndex] = useState(0);
 
   useEffect(() => {
     if (selectedDirectoryUri) {
@@ -30,19 +21,15 @@ export default function VideoFeedScreen() {
     setLoading(true);
     
     try {
-      // 1. On lit tout le contenu du dossier sélectionné
       const files = await StorageAccessFramework.readDirectoryAsync(selectedDirectoryUri!);
       
-      // 2. On filtre pour ne garder que les vidéos
-      const videoUris = files.filter(uri => {
+      const videoUris = files.filter((uri: string) => {
         const lowerUri = uri.toLowerCase();
         return lowerUri.endsWith('.mp4') || lowerUri.endsWith('.mkv') || lowerUri.endsWith('.mov') || lowerUri.endsWith('.webm');
       });
 
-      // 3. On formate les données pour notre FlatList
-      const formattedVideos: LocalVideo[] = videoUris.map((uri, index) => {
-        // On extrait le nom du fichier à partir de l'URI (un peu basique mais ça marche)
-        const parts = uri.split('%2F'); // %2F est souvent le slash encodé
+      const formattedVideos: LocalVideo[] = videoUris.map((uri: string, index: number) => {
+        const parts = uri.split('%2F');
         const filename = parts[parts.length - 1] || `Video_${index}`;
         
         return {
@@ -60,15 +47,24 @@ export default function VideoFeedScreen() {
     }
   };
 
-  const renderItem = ({ item }: { item: LocalVideo }) => {
+  // --- LOGIQUE TIKTOK (Viewability) ---
+  // On détecte quel élément est le plus visible à l'écran
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    if (viewableItems.length > 0 && viewableItems[0].index !== null) {
+      setActiveVideoIndex(viewableItems[0].index);
+    }
+  }).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 60, // L'élément doit être au moins à 60% à l'écran
+  }).current;
+
+  const renderItem = ({ item, index }: { item: LocalVideo; index: number }) => {
     return (
-      <View style={[styles.videoContainer, { height: ITEM_HEIGHT }]}>
-        {/* Placeholder avant d'intégrer expo-video */}
-        <Text style={{ color: 'white', textAlign: 'center', padding: 20 }}>
-          🎥 {item.filename}
-        </Text>
-        <Text style={{ color: TikTokColors.gray }}>Prêt à être lu</Text>
-      </View>
+      <VideoPost 
+        video={item} 
+        isActive={index === activeVideoIndex} 
+      />
     );
   };
 
@@ -84,7 +80,7 @@ export default function VideoFeedScreen() {
     <View style={styles.container}>
       {videos.length === 0 ? (
         <View style={styles.center}>
-          <Text style={{ color: 'white', textAlign: 'center' }}>Aucune vidéo mp4/mkv trouvée dans ce dossier.</Text>
+          <Text style={{ color: 'white', textAlign: 'center' }}>Aucune vidéo trouvée dans ce dossier.</Text>
         </View>
       ) : (
         <FlatList
@@ -93,9 +89,13 @@ export default function VideoFeedScreen() {
           keyExtractor={(item) => item.id}
           pagingEnabled
           showsVerticalScrollIndicator={false}
-          snapToInterval={ITEM_HEIGHT}
-          snapToAlignment="start"
-          decelerationRate="fast"
+          onViewableItemsChanged={onViewableItemsChanged}
+          viewabilityConfig={viewabilityConfig}
+          // Optimisations de performance
+          initialNumToRender={3}
+          maxToRenderPerBatch={3}
+          windowSize={5}
+          removeClippedSubviews={true}
         />
       )}
     </View>
@@ -113,12 +113,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  videoContainer: {
-    width: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#222',
-  },
 });
+
 
